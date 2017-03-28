@@ -17,6 +17,6 @@ rs = RedisCluster.new hosts
 
 puts "nodes count: #{rs.nodes.size}"
 rs.nodes.sort_by{|n| n.hostname + n.port.to_s}.each do |node|
-  puts "%12s %14s %5d %s %6s slots: %5d" % [node.hostname, node.host, node.port, node.id, node.role, node.slots.count]
+  puts "%12s %14s %5d %s %6s %6s slots: %5d" % [node.hostname, node.host, node.port, node.id, node.role, node.status, node.slot_count]
   # puts "slots: #{node.slots}"
 end

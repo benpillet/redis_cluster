@@ -19,7 +19,12 @@ module RedisCluster
       # puts "add_node: #{node}"
       details = node.chomp.split(/ |:/)
       node_options = { host: details[1], port: details[2] }
-      new_node = Node.new(node_options, details[3], details[0])
+      role = details[3]
+      role.gsub!(/myself,/, '')
+      role, status = role.split(',')
+      puts "details: #{details[3]} role: #{role} status: #{status}"
+      status = 'ok' if status.nil?
+      new_node = Node.new(node_options, role, details[0], status)
       if new_node.role == 'master' || new_node.role == 'slave'
         #puts "new_node: #{new_node}"
         node = @nodes.find {|n| n.id == new_node.id } || new_node
@@ -30,6 +35,10 @@ module RedisCluster
         @nodes.uniq! { |n| n.id }
         #puts "after uniq"
         #print_nodes
+      else
+        puts "role is bad: #{new_node.role}"
+        puts "node: #{node}"
+        puts "details: #{details}"
       end
 
       @nodes

@@ -2,19 +2,20 @@ module RedisCluster
 
   class Node
     # slots is a range array: [1..100, 300..500]
-    attr_accessor :slots, :id, :role
+    attr_accessor :slots, :id, :role, :status
 
     #
     # basic requires:
     #   {host: xxx.xxx.xx.xx, port: xxx}
     # redis cluster don't support select db, use default 0
     #
-    def initialize(opts, role='master', id='')
+    def initialize(opts, role='master', id='', status='ok')
       @options = opts
       @slots = []
       @role = role
       @id = id
       @hostname = nil
+      @status = status
     end
 
     def host
@@ -26,8 +27,12 @@ module RedisCluster
     end
 
     def hostname
-      @hostname = Resolv.getname(@options[:host]) if @hostname == nil
-      @hostname = @hostname.split('.')[0]
+      if @status != 'noaddr'
+        @hostname = Resolv.getname(@options[:host]) if @hostname == nil
+        @hostname = @hostname.split('.')[0]
+      else
+        @hostname = 'noaddr'
+      end
       @hostname
     end
 
@@ -41,6 +46,10 @@ module RedisCluster
 
     def has_slot?(slot)
       slots.any? {|range| range.include? slot }
+    end
+
+    def slot_count
+      slots.map { |range| range.size }.inject(0, :+)
     end
 
     def asking
