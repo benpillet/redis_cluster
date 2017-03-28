@@ -2,16 +2,33 @@ module RedisCluster
 
   class Node
     # slots is a range array: [1..100, 300..500]
-    attr_accessor :slots
+    attr_accessor :slots, :id, :role
 
     #
     # basic requires:
     #   {host: xxx.xxx.xx.xx, port: xxx}
     # redis cluster don't support select db, use default 0
     #
-    def initialize(opts)
+    def initialize(opts, role='master', id='')
       @options = opts
       @slots = []
+      @role = role
+      @id = id
+      @hostname = nil
+    end
+
+    def host
+      @options[:host]
+    end
+
+    def port
+      @options[:port]
+    end
+
+    def hostname
+      @hostname = Resolv.getname(@options[:host]) if @hostname == nil
+      @hostname = @hostname.split('.')[0]
+      @hostname
     end
 
     def name

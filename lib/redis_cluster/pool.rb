@@ -7,17 +7,45 @@ module RedisCluster
       @nodes = []
     end
 
-    # TODO: type check
     def add_node!(node_options, slots)
       new_node = Node.new(node_options)
       node = @nodes.find {|n| n.name == new_node.name } || new_node
       node.slots = slots
+
       @nodes.push(node).uniq!
     end
 
+    def add_node_from_nodes(node)
+      # puts "add_node: #{node}"
+      details = node.chomp.split(/ |:/)
+      node_options = { host: details[1], port: details[2] }
+      new_node = Node.new(node_options, details[3], details[0])
+      if new_node.role == 'master' || new_node.role == 'slave'
+        #puts "new_node: #{new_node}"
+        node = @nodes.find {|n| n.id == new_node.id } || new_node
+
+        #puts "nodes before push"
+        #print_nodes
+        @nodes.push(node)
+        @nodes.uniq! { |n| n.id }
+        #puts "after uniq"
+        #print_nodes
+      end
+
+      @nodes
+    end
+
+    def print_nodes
+      puts "count: #{@nodes.count}"
+      @nodes.each do |n|
+        puts "#{n.host} #{n.port} #{n.host_hash}"
+      end
+    end
+
     def delete_except!(master_hosts)
-      names = master_hosts.map {|host, port| "#{host}:#{port}" }
-      @nodes.delete_if {|n| !names.include?(n.name) }
+      #puts "delete_except: #{master_hosts}"
+      #names = master_hosts.map {|host, port| "#{host}:#{port}" }
+      #@nodes.delete_if {|n| !names.include?(n.name) }
     end
 
     # other_options:

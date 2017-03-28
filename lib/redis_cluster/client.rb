@@ -11,6 +11,10 @@ module RedisCluster
       reload_pool_nodes(true)
     end
 
+    def nodes
+      @pool.nodes
+    end
+
     def execute(method, args, &block)
       ttl = Configuration::REQUEST_TTL
       asking = false
@@ -50,12 +54,22 @@ module RedisCluster
     private
 
     def reload_pool_nodes(raise_error = false)
+      # puts "reload_pool_nodes @startup_hosts: #{@startup_hosts}"
       return @pool.add_node!(@startup_hosts, [(0..Configuration::HASH_SLOTS)]) unless @startup_hosts.is_a? Array
 
       @mutex.synchronize do
         @startup_hosts.each do |options|
           begin
             redis = Node.redis(options)
+            nodes = redis.cluster('nodes')
+            # puts "nodes: #{nodes}"
+            nodes.split("\n").each do |node|
+              # puts "node: #{node}"
+              node_details = node.split(/ |:/)
+              # puts "node_details: #{node_details}"
+              @pool.add_node_from_nodes(node)
+            end
+
             slots_mapping = redis.cluster("slots").group_by{|x| x[2]}
             @pool.delete_except!(slots_mapping.keys)
             slots_mapping.each do |host, infos|
@@ -65,7 +79,9 @@ module RedisCluster
           rescue Redis::CommandError => e
             raise e if raise_error && e.message =~ /cluster\ support\ disabled$/
             next
-          rescue
+          rescue Exception => e
+            puts e.inspect
+            puts e.backtrace.join("\n")
             next
           end
           break
