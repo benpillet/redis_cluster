@@ -100,9 +100,9 @@ module RedisCluster
     end
 
     def move_slot(slot, source, target)
-      print "Moving slot #{slot.id} from #{source.name} to #{target.name}: "; STDOUT.flush
+      puts "Moving slot #{slot.id} from #{source.name} to #{target.name}"
       @nodes.each{|n|
-        puts "n: #{n.name}"
+        # puts "n: #{n.name}"
         begin
           n.connection.cluster("setslot",slot.id,"stable")
         rescue Exception => e
@@ -122,6 +122,7 @@ module RedisCluster
       end
 
       count = 0
+      busykey_count = 0
       while true
         begin
           keys = source.connection.cluster("getkeysinslot",slot.id, 50)
@@ -130,10 +131,13 @@ module RedisCluster
           keys.each{ |key|
             begin
               source.connection.client.call(["migrate",target.host,target.port,key,0,15000])
-            rescue Exception => e
-              puts "migrate exception: #{e.inspect}"
+            rescue Redis::CommandError => e
+              # puts "migrate exception: #{e.inspect}"
+              # print "Y"
               if e.to_s =~ /BUSYKEY/
-                puts "*** Target key #{key} exists. Replace it for FIX."
+                busykey_count += 1
+                print "X" if (busykey_count % 500 == 0)
+                # puts "Target key #{key} exists. Replace it for FIX."
                 source.connection.client.call(["migrate",target.host,target.port,key,0,15000,:replace])
               else
                 puts ""
@@ -144,7 +148,7 @@ module RedisCluster
             print "." if (count % 500 == 0)
             STDOUT.flush
           }
-        rescue Exception => e
+        rescue Redis::CommandError => e
           puts "e: #{e.inspect}"
           puts e.backtrace
         end
