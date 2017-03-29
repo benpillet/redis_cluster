@@ -22,7 +22,7 @@ module RedisCluster
       role = details[3]
       role.gsub!(/myself,/, '')
       role, status = role.split(',')
-      puts "details: #{details[3]} role: #{role} status: #{status}"
+      # puts "details: #{details[3]} role: #{role} status: #{status}"
       status = 'ok' if status.nil?
       new_node = Node.new(node_options, role, details[0], status)
       if new_node.role == 'master' || new_node.role == 'slave'
@@ -85,6 +85,82 @@ module RedisCluster
     def pipelined(args, &block)
       random_node.execute :pipelined, args, &block
     end
+
+    def slot(id)
+      #puts "pool.slot(#{id})"
+      node = @nodes.find {|node| node.has_slot?(id) }
+      nodes = @nodes.select { |n| n.has_slot?(id) }
+      if nodes.size > 1
+        puts "slot thinks it's owned by more than one node"
+        puts "nodes: #{nodes}"
+      end
+      #puts "node: #{node}"
+      s = Slot.new(id, node)
+      s
+    end
+
+    def move_slot(slot, source, target)
+      print "Moving slot #{slot.id} from #{source.name} to #{target.name}: "; STDOUT.flush
+      @nodes.each{|n|
+        puts "n: #{n.name}"
+        begin
+          n.connection.cluster("setslot",slot.id,"stable")
+        rescue Exception => e
+          puts "setslot failed for node #{n.name} e: #{e.inspect}"
+        end
+      }
+
+      begin
+        target.connection.cluster("setslot", slot.id, "importing", source.id)
+      rescue Exception => e
+        puts "e: #{e.inspect}"
+      end
+      begin
+        source.connection.cluster("setslot", slot.id, "migrating", target.id)
+      rescue Exception => e
+        puts "e: #{e.inspect}"
+      end
+
+      count = 0
+      while true
+        begin
+          keys = source.connection.cluster("getkeysinslot",slot.id, 50)
+          # puts "keys count: #{keys.length}"
+          break if keys.length == 0
+          keys.each{ |key|
+            begin
+              source.connection.client.call(["migrate",target.host,target.port,key,0,15000])
+            rescue Exception => e
+              puts "migrate exception: #{e.inspect}"
+              if e.to_s =~ /BUSYKEY/
+                puts "*** Target key #{key} exists. Replace it for FIX."
+                source.connection.client.call(["migrate",target.host,target.port,key,0,15000,:replace])
+              else
+                puts ""
+                puts "[ERR] #{e}"
+              end
+            end
+            count += 1
+            print "." if (count % 500 == 0)
+            STDOUT.flush
+          }
+        rescue Exception => e
+          puts "e: #{e.inspect}"
+          puts e.backtrace
+        end
+      end
+        
+      puts
+      @nodes.each{|n|
+        puts "n: #{n.name}"
+        begin
+          n.connection.cluster("setslot",slot.id,"node",target.id)
+        rescue Exception => e
+          puts "setslot failed for node #{n.name} e: #{e.inspect}"
+        end
+      }
+    end
+        
 
     private
 

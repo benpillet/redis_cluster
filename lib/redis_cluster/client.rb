@@ -15,6 +15,19 @@ module RedisCluster
       @pool.nodes
     end
 
+    def slot(id)
+      # puts "client.slot(#{id})"
+      @pool.slot(id)
+    end
+
+    def move_slot(slot, source, target)
+      @pool.move_slot(slot, source, target)
+    end
+
+    def node_by_name(name)
+      nodes.find { |n| n.name == name }
+    end
+
     def execute(method, args, &block)
       ttl = Configuration::REQUEST_TTL
       asking = false

@@ -12,6 +12,13 @@ module RedisCluster
       CRC16.crc16(key) % Configuration::HASH_SLOTS
     end
 
+    attr_accessor :id, :node
+
+    def initialize(id, node)
+      @id = id
+      @node = node
+    end
+
   end # end Slot
 
 end
