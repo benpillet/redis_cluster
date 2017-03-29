@@ -30,3 +30,5 @@ end
 open_slots = rs.check_open_slots(options[:fix])
 puts "open_slots: %s" % open_slots.inspect
 
+uncovered_slots = rs.check_slots_coverage(options[:fix])
+puts "uncovered_slots: %s" % uncovered_slots.inspect

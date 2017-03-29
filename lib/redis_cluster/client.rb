@@ -1,4 +1,7 @@
 require "thread"
+require 'differ'
+
+ClusterHashSlots = 16384 
 
 module RedisCluster
 
@@ -39,7 +42,7 @@ module RedisCluster
       nodes.each do |node|
         puts "node: %20s status: #{node.status}" % node.name if fix
         if node.status == 'noaddr' && fix
-          rs.nodes.each do |n|
+          nodes.each do |n|
             begin
               n.connection.cluster('forget', node.id)
             rescue RuntimeError => e
@@ -50,6 +53,24 @@ module RedisCluster
         fixed_count = 0
       end
       fixed_count
+    end
+
+    def check_slots_coverage(fix = false)
+      uncovered_slots = []
+      (0...ClusterHashSlots).each do |slot_id|
+        s = slot(slot_id)
+        if s.node.nil?
+          puts "slot #{s.id} does not have a host owning it"
+          nodes.each do |node|
+            puts "node: #{node.name} has_slot?(#{slot_id}) #{node.has_slot?(slot_id)}"
+            puts "key_count: #{node.connection.cluster('COUNTKEYSINSLOT', slot_id)}"
+          end
+          uncovered_slots << slot_id
+        else
+          # puts "slot: #{s.id} owner: #{s.node.name}"
+        end
+      end
+      uncovered_slots
     end
 
     def check_open_slots(fix = false)
@@ -185,13 +206,34 @@ module RedisCluster
         @startup_hosts.each do |options|
           begin
             redis = Node.redis(options)
-            nodes = redis.cluster('nodes')
-            # puts "nodes: #{nodes}"
+            nodes_before = redis.cluster('nodes')
+            if false
+              nodes_ascii = nodes_before.encode('ASCII-8BIT', 'binary', invalid: :replace, undef: :replace, replace: '')
+              nodes_utf   = nodes_before.encode('UTF-8', 'binary', invalid: :replace, undef: :replace, replace: '')
+              zipped = nodes_before.each_byte.zip(nodes_ascii.each_byte)
+              #puts "zipped: #{zipped.inspect}"
+
+              zipped.each do |before, ascii|
+                if before == ascii
+                  print before.chr
+                else
+                  print "before: #{before} ascii: #{ascii}"
+                  exit 1
+                end
+              end
+            end
+            
+            nodes = nodes_before
             nodes.split("\n").each do |node|
               # puts "node: #{node}"
-              node_details = node.split(/ |:/)
-              # puts "node_details: #{node_details}"
-              @pool.add_node_from_nodes(node)
+              begin
+                node_details = node.split(/ |:/)
+                # puts "node_details: #{node_details}"
+                @pool.add_node_from_nodes(node)
+              rescue ArgumentError => e
+                puts e.inspect
+                puts e.backtrace.join("\n")
+              end
             end
 
             slots_mapping = redis.cluster("slots").group_by{|x| x[2]}
@@ -203,7 +245,7 @@ module RedisCluster
           rescue Redis::CommandError => e
             raise e if raise_error && e.message =~ /cluster\ support\ disabled$/
             next
-          rescue Exception => e
+          rescue ArgumentError, Exception => e
             puts e.inspect
             puts e.backtrace.join("\n")
             next

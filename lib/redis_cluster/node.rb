@@ -38,7 +38,8 @@ module RedisCluster
     end
 
     def hostname
-      if @status != 'noaddr'
+      if @status != 'noaddr' && @options[:host] != ''
+        # puts "host: #{@options[:host].inspect}"
         @hostname = Resolv.getname(@options[:host]) if @hostname.nil?
         @hostname = @hostname.split('.')[0]
       else
@@ -70,12 +71,12 @@ module RedisCluster
 
     def nodes_config
       # puts "nodes_config: #{name} #{status}"
-      if status.nil? || status == 'noaddr'
+      if status.nil? || status == 'noaddr' || status == 'fail'
         @nodes_config = ''
       else
         begin
           @nodes_config = self.connection.cluster('nodes') if @nodes_config.nil?
-        rescue Redis::CannotConnectError => e
+        rescue Redis::TimeoutError, Redis::CannotConnectError => e
           puts "can't connect to #{name}"
           @nodes_config = ''
         end

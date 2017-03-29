@@ -22,7 +22,7 @@ puts "nodes count: #{rs.nodes.size}"
 slot = rs.slot(options[:slot])
 puts "slot: #{slot}"
 
-from_node = slot.node
+from_node = rs.node_by_name(options[:from])
 to_node = rs.node_by_name(options[:to])
 puts "from: #{from_node}"
 puts "to:   #{to_node}"

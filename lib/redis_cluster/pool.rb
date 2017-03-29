@@ -19,6 +19,10 @@ module RedisCluster
       # puts "add_node: #{node}"
       details = node.chomp.split(/ |:/)
       node_options = { host: details[1], port: details[2] }
+      if details[2] == '0'
+        puts "Not adding node for details: #{node.chomp}"
+        puts "details: #{details}"
+      end
       role = details[3]
       role.gsub!(/myself,/, '')
       role, status = role.split(',')
@@ -89,18 +93,21 @@ module RedisCluster
     def slot(id)
       #puts "pool.slot(#{id})"
       node = @nodes.find {|node| node.has_slot?(id) }
-      nodes = @nodes.select { |n| n.has_slot?(id) }
-      if nodes.size > 1
-        puts "slot thinks it's owned by more than one node"
-        puts "nodes: #{nodes}"
-      end
+      #nodes = @nodes.select { |n| n.has_slot?(id) }
+      #if nodes.size > 1
+      #  puts "slot thinks it's owned by more than one node"
+      #  puts "nodes: #{nodes}"
+      #end
       #puts "node: #{node}"
       s = Slot.new(id, node)
       s
     end
 
     def move_slot(slot, source, target)
-      puts "Moving slot #{slot.id} from #{source.name} to #{target.name}"
+      puts "Moving slot #{slot.id}"
+      puts "from #{source.name}" unless source.nil?
+      puts "to #{target.name}" unless target.nil?
+      # puts "Moving slot #{slot.id} from #{source.name} to #{target.name}"
       @nodes.each{|n|
         # puts "n: #{n.name}"
         begin
